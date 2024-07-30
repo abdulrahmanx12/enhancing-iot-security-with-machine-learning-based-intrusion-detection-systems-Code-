@@ -1,0 +1,512 @@
+#Libraries
+import pandas as pd
+import numpy as np
+from scipy.stats import uniform
+from sklearn.model_selection import train_test_split, RandomizedSearchCV
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from xgboost import XGBClassifier
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, roc_curve, auc
+
+# Load the training dataset
+training_data = pd.read_csv('UNSW_NB15_training_set.csv')
+
+# Display the first few rows of the dataframe
+print(training_data.head())
+
+# Drop non-essential columns
+features_to_drop = ['id', 'proto', 'service', 'state', 'attack_cat']
+training_data = training_data.drop(columns=features_to_drop)
+
+
+# Split the dataset into features and labels
+X = training_data.drop(columns=['label'])
+y = training_data['label']
+
+# Further split the dataset into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+print(training_data.dtypes)
+
+# Identify non-numeric columns
+non_numeric_columns = training_data.select_dtypes(exclude=[np.number]).columns
+print("Non-numeric columns:", non_numeric_columns)
+
+# Dropping non-numeric columns if they can't be converted or are unnecessary
+training_data = training_data.drop(columns=non_numeric_columns)
+
+# Now split into features and labels
+X = training_data.drop(columns=['label'])
+y = training_data['label']
+
+# Ensure all remaining columns are numeric
+print(X.dtypes)
+
+# List of features to keep
+features_to_keep = [
+    'dur', 'sbytes', 'dbytes', 'rate', 'sttl', 'dttl', 'sload', 'dload',
+    'sloss', 'dloss', 'dinpkt', 'sjit', 'djit', 'swin', 'stcpb', 'dtcpb',
+    'tcprtt', 'smean', 'dmean', 'trans_depth', 'response_body_len', 'ct_srv_src',
+    'ct_state_ttl', 'ct_dst_ltm', 'ct_dst_sport_ltm', 'is_ftp_login', 'ct_flw_http_mthd',
+    'ct_src_ltm', 'ct_srv_dst', 'is_sm_ips_ports'
+]
+
+# Select these features in both training and test datasets
+X_train_final = X_train[features_to_keep]
+X_test_final = X_test[features_to_keep]
+
+# Check the final shape of the datasets to ensure features were correctly removed
+print(f"Training set shape: {X_train_final.shape}")
+print(f"Test set shape: {X_test_final.shape}")
+
+#Model Evaluation
+
+# Initialize the Logistic Regression model
+lr_model = LogisticRegression(max_iter=2000, random_state=42)
+
+# Train the model with the updated training data
+lr_model.fit(X_train_final, y_train)
+
+# Predict on the updated test data
+y_pred_lr = lr_model.predict(X_test_final)
+
+# Evaluate the model's performance
+accuracy = accuracy_score(y_test, y_pred_lr)
+classification_rep = classification_report(y_test, y_pred_lr)
+confusion_mat = confusion_matrix(y_test, y_pred_lr)
+
+print(f"Logistic Regression Accuracy: {accuracy:.4f}")
+print("Classification Report:\n", classification_rep)
+print("Confusion Matrix:\n", confusion_mat)
+
+# Define the parameter distributions
+param_dist = {
+    'C': uniform(0.01, 100),
+    'penalty': ['l1', 'l2'],
+    'solver': ['liblinear', 'saga']
+}
+
+# Initialize the Logistic Regression model
+lr = LogisticRegression(max_iter=1000, random_state=42)
+
+# Initialize RandomizedSearchCV
+random_search = RandomizedSearchCV(
+    estimator=lr,
+    param_distributions=param_dist,
+    n_iter=50,  
+    cv=5,  
+    scoring='accuracy', 
+    verbose=2,
+    random_state=42,
+    n_jobs=-1 
+)
+
+# Fit RandomizedSearchCV
+random_search.fit(X_train_final, y_train)
+
+# Get the best parameters and best score
+best_params = random_search.best_params_
+best_score = random_search.best_score_
+
+print(f"Best Parameters: {best_params}")
+print(f"Best Cross-Validation Score: {best_score:.4f}")
+
+# Initialize the Logistic Regression model with the best parameters
+best_lr_model = LogisticRegression(**best_params, max_iter=1000, random_state=42)
+
+# Train the model on the full training data
+best_lr_model.fit(X_train_final, y_train)
+
+# Predict on the test set
+y_pred_best_lr = best_lr_model.predict(X_test_final)
+
+# Evaluate the model's performance
+accuracy_best = accuracy_score(y_test, y_pred_best_lr)
+classification_rep_best = classification_report(y_test, y_pred_best_lr)
+confusion_mat_best = confusion_matrix(y_test, y_pred_best_lr)
+
+print(f"Optimized Logistic Regression Accuracy: {accuracy_best:.4f}")
+print("Optimized Classification Report:\n", classification_rep_best)
+print("Optimized Confusion Matrix:\n", confusion_mat_best)
+
+# Initialize the Decision Tree model with default parameters
+dt_model = DecisionTreeClassifier(random_state=42)
+
+# Train the model on the training data
+dt_model.fit(X_train_final, y_train)
+
+# Predict on the test set
+y_pred_dt = dt_model.predict(X_test_final)
+
+# Evaluate the model's performance
+accuracy = accuracy_score(y_test, y_pred_dt)
+classification_rep = classification_report(y_test, y_pred_dt)
+confusion_mat = confusion_matrix(y_test, y_pred_dt)
+
+print(f"Initial Decision Tree Accuracy: {accuracy:.4f}")
+print("Initial Classification Report:\n", classification_rep)
+print("Initial Confusion Matrix:\n", confusion_mat)
+
+# Define the parameter distributions for RandomizedSearchCV
+param_dist = {
+    'max_depth': randint(3, 20), 
+    'min_samples_split': randint(2, 20), 
+    'min_samples_leaf': randint(1, 20),  
+    'max_features': ['auto', 'sqrt', 'log2', None] 
+}
+
+# Initialize RandomizedSearchCV with the Decision Tree model
+random_search = RandomizedSearchCV(
+    estimator=dt_model,
+    param_distributions=param_dist,
+    n_iter=50,  
+    cv=5, 
+    scoring='accuracy', 
+    verbose=2,
+    random_state=42,
+    n_jobs=-1 
+)
+
+# Fit RandomizedSearchCV to find the best hyperparameters
+random_search.fit(X_train_final, y_train)
+
+# Extract the best parameters and best score
+best_params = random_search.best_params_
+best_score = random_search.best_score_
+
+print(f"Best Parameters: {best_params}")
+print(f"Best Cross-Validation Score: {best_score:.4f}")
+
+# Initialize the Decision Tree model with the best parameters
+best_dt_model = DecisionTreeClassifier(**best_params, random_state=42)
+
+# Train the model on the full training data
+best_dt_model.fit(X_train_final, y_train)
+
+# Predict on the test set
+y_pred_best_dt = best_dt_model.predict(X_test_final)
+
+# Evaluate the optimized model's performance
+accuracy_best = accuracy_score(y_test, y_pred_best_dt)
+classification_rep_best = classification_report(y_test, y_pred_best_dt)
+confusion_mat_best = confusion_matrix(y_test, y_pred_best_dt)
+
+print(f"Optimized Decision Tree Accuracy: {accuracy_best:.4f}")
+print("Optimized Classification Report:\n", classification_rep_best)
+print("Optimized Confusion Matrix:\n", confusion_mat_best)
+
+# Initialize the Random Forest model with default parameters
+rf_model = RandomForestClassifier(random_state=42)
+
+# Train the model on the training data
+rf_model.fit(X_train_final, y_train)
+
+# Predict on the test set
+y_pred_rf = rf_model.predict(X_test_final)
+
+# Evaluate the model's performance
+accuracy_rf = accuracy_score(y_test, y_pred_rf)
+classification_rep_rf = classification_report(y_test, y_pred_rf)
+confusion_mat_rf = confusion_matrix(y_test, y_pred_rf)
+
+print(f"Initial Random Forest Accuracy: {accuracy_rf:.4f}")
+print("Initial Classification Report:\n", classification_rep_rf)
+print("Initial Confusion Matrix:\n", confusion_mat_rf)
+
+# Define the parameter distributions
+param_dist = {
+    'n_estimators': randint(100, 1000), 
+    'max_depth': randint(10, 50), 
+    'min_samples_split': randint(2, 10), 
+    'min_samples_leaf': randint(1, 10),  
+    'max_features': ['auto', 'sqrt', 'log2', None]
+}
+
+# Initialize RandomizedSearchCV with the Random Forest model
+random_search = RandomizedSearchCV(
+    estimator=rf_model,
+    param_distributions=param_dist,
+    n_iter=50, 
+    cv=5, 
+    scoring='accuracy', 
+    verbose=2,
+    random_state=42,
+    n_jobs=-1
+)
+
+# Fit RandomizedSearchCV to find the best hyperparameters
+random_search.fit(X_train_final, y_train)
+
+# Extract the best parameters and best score
+best_params_rf = random_search.best_params_
+best_score_rf = random_search.best_score_
+
+print(f"Best Parameters: {best_params_rf}")
+print(f"Best Cross-Validation Score: {best_score_rf:.4f}")
+
+# Initialize the Random Forest model with the best parameters
+best_rf_model = RandomForestClassifier(**best_params_rf, random_state=42)
+
+# Train the model on the full training data
+best_rf_model.fit(X_train_final, y_train)
+
+# Predict on the test set
+y_pred_best_rf = best_rf_model.predict(X_test_final)
+
+# Evaluate the optimized model's performance
+accuracy_best_rf = accuracy_score(y_test, y_pred_best_rf)
+classification_rep_best_rf = classification_report(y_test, y_pred_best_rf)
+confusion_mat_best_rf = confusion_matrix(y_test, y_pred_best_rf)
+
+print(f"Optimized Random Forest Accuracy: {accuracy_best_rf:.4f}")
+print("Optimized Classification Report:\n", classification_rep_best_rf)
+print("Optimized Confusion Matrix:\n", confusion_mat_best_rf)
+
+# Initialize the Gradient Boosting model with default parameters
+gbm_model = GradientBoostingClassifier(random_state=42)
+
+# Train the model on the training data
+gbm_model.fit(X_train_final, y_train)
+
+# Predict on the test set
+y_pred_gbm = gbm_model.predict(X_test_final)
+
+# Evaluate the model's performance
+accuracy_gbm = accuracy_score(y_test, y_pred_gbm)
+classification_rep_gbm = classification_report(y_test, y_pred_gbm)
+confusion_mat_gbm = confusion_matrix(y_test, y_pred_gbm)
+
+print(f"Initial Gradient Boosting Accuracy: {accuracy_gbm:.4f}")
+print("Initial Classification Report:\n", classification_rep_gbm)
+print("Initial Confusion Matrix:\n", confusion_mat_gbm)
+
+# Define a more limited parameter distribution
+param_dist = {
+    'n_estimators': randint(100, 500),  
+    'learning_rate': uniform(0.01, 0.2),  
+    'max_depth': randint(3, 10),
+    'min_samples_split': randint(2, 10), 
+    'min_samples_leaf': randint(1, 10),  
+    'subsample': uniform(0.7, 0.3) 
+}
+
+# Initialize the Gradient Boosting model
+gbm_model = GradientBoostingClassifier(random_state=42)
+
+# Initialize RandomizedSearchCV
+random_search = RandomizedSearchCV(
+    estimator=gbm_model,
+    param_distributions=param_dist,
+    n_iter=20, 
+    cv=3, 
+    scoring='accuracy', 
+    verbose=2,
+    random_state=42,
+    n_jobs=-1 
+)
+
+# Fit RandomizedSearchCV
+random_search.fit(X_train_final, y_train)
+
+# Extract the best parameters and best score
+best_params_gbm = random_search.best_params_
+best_score_gbm = random_search.best_score_
+
+print(f"Best Parameters: {best_params_gbm}")
+print(f"Best Cross-Validation Score: {best_score_gbm:.4f}")
+
+# Initialize the Gradient Boosting model with the best parameters
+best_gbm_model = GradientBoostingClassifier(**best_params_gbm, random_state=42)
+
+# Train the model on the full training data
+best_gbm_model.fit(X_train_final, y_train)
+
+# Predict on the test set
+y_pred_best_gbm = best_gbm_model.predict(X_test_final)
+
+# Evaluate the optimized model's performance
+accuracy_best_gbm = accuracy_score(y_test, y_pred_best_gbm)
+classification_rep_best_gbm = classification_report(y_test, y_pred_best_gbm)
+confusion_mat_best_gbm = confusion_matrix(y_test, y_pred_best_gbm)
+
+print(f"Optimized Gradient Boosting Accuracy: {accuracy_best_gbm:.4f}")
+print("Optimized Classification Report:\n", classification_rep_best_gbm)
+print("Optimized Confusion Matrix:\n", confusion_mat_best_gbm)
+
+# Initialize the XGBoost model with default parameters
+xgb_model = XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='logloss')
+
+# Train the model on the training data
+xgb_model.fit(X_train_final, y_train)
+
+# Predict on the test set
+y_pred_xgb = xgb_model.predict(X_test_final)
+
+# Evaluate the model's performance
+accuracy_xgb = accuracy_score(y_test, y_pred_xgb)
+classification_rep_xgb = classification_report(y_test, y_pred_xgb)
+confusion_mat_xgb = confusion_matrix(y_test, y_pred_xgb)
+
+print(f"Initial XGBoost Accuracy: {accuracy_xgb:.4f}")
+print("Initial Classification Report:\n", classification_rep_xgb)
+print("Initial Confusion Matrix:\n", confusion_mat_xgb)
+
+# Define the parameter distributions for RandomizedSearchCV
+param_dist = {
+    'n_estimators': randint(100, 1000),
+    'max_depth': randint(3, 10), 
+    'learning_rate': uniform(0.01, 0.3), 
+    'subsample': uniform(0.6, 0.4),  
+    'colsample_bytree': uniform(0.6, 0.4), 
+    'gamma': uniform(0, 5), 
+    'min_child_weight': randint(1, 10) 
+}
+
+# Initialize RandomizedSearchCV with the XGBoost model
+random_search = RandomizedSearchCV(
+    estimator=xgb_model,
+    param_distributions=param_dist,
+    n_iter=50,
+    cv=3, 
+    scoring='accuracy', 
+    verbose=2,
+    random_state=42,
+    n_jobs=-1 
+)
+
+# Fit RandomizedSearchCV to find the best hyperparameters
+random_search.fit(X_train_final, y_train)
+
+# Extract the best parameters and best score
+best_params_xgb = random_search.best_params_
+best_score_xgb = random_search.best_score_
+
+print(f"Best Parameters: {best_params_xgb}")
+print(f"Best Cross-Validation Score: {best_score_xgb:.4f}")
+
+# Initialize the XGBoost model with the best parameters
+best_xgb_model = XGBClassifier(**best_params_xgb, random_state=42, use_label_encoder=False, eval_metric='logloss')
+
+# Train the model on the full training data
+best_xgb_model.fit(X_train_final, y_train)
+
+# Predict on the test set
+y_pred_best_xgb = best_xgb_model.predict(X_test_final)
+
+# Evaluate the optimized model's performance
+accuracy_best_xgb = accuracy_score(y_test, y_pred_best_xgb)
+classification_rep_best_xgb = classification_report(y_test, y_pred_best_xgb)
+confusion_mat_best_xgb = confusion_matrix(y_test, y_pred_best_xgb)
+
+print(f"Optimized XGBoost Accuracy: {accuracy_best_xgb:.4f}")
+print("Optimized Classification Report:\n", classification_rep_best_xgb)
+print("Optimized Confusion Matrix:\n", confusion_mat_best_xgb)
+
+#Data Visualisation
+
+# Plot the frequency distribution of labels
+plt.figure(figsize=(6, 4))
+sns.countplot(data=training_data, x='label')
+plt.title('Frequency Distribution of Labels')
+plt.xlabel('Label')
+plt.ylabel('Count')
+plt.xticks([0, 1], ['Normal', 'Attack'])
+plt.show()
+
+# Plot the frequency distribution of attack categories
+plt.figure(figsize=(10, 6))
+sns.countplot(data=training_data, x='attack_cat', order=training_data['attack_cat'].value_counts().index)
+plt.xticks(rotation=45, ha='right')
+plt.title('Frequency Distribution of Attack Categories')
+plt.xlabel('Attack Category')
+plt.ylabel('Count')
+plt.show()
+
+plt.figure(figsize=(8, 6))
+sns.boxplot(data=training_data, x='label', y='dur')
+plt.title('Distribution of Duration by Label')
+plt.xlabel('Label')
+plt.ylabel('Duration')
+plt.xticks([0, 1], ['Normal', 'Attack'])
+plt.show()
+
+# Function to plot confusion matrix
+def plot_confusion_matrix(cm, title, labels):
+    plt.figure(figsize=(6, 4))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False, xticklabels=labels, yticklabels=labels)
+    plt.title(title)
+    plt.xlabel('Predicted')
+    plt.ylabel('Actual')
+    plt.show()
+
+# Confusion matrices data (TN, FP, FN, TP)
+cm_logistic_after = np.array([[8819, 2350], [313, 23587]])
+cm_dt_after = np.array([[10138, 1031], [808, 23092]])
+cm_rf_after = np.array([[10166, 1003], [446, 23454]])
+cm_gbm_after = np.array([[10196, 973], [455, 23445]])
+cm_xgb_after = np.array([[27252, 9748], [1438, 43894]])
+
+labels = ['Normal', 'Attack']
+
+# Plotting confusion matrices
+# Logistic Regression
+plot_confusion_matrix(cm_logistic_after, 'Logistic Regression', labels)
+
+# Decision Tree
+plot_confusion_matrix(cm_dt_after, 'Decision Tree', labels)
+
+# Random Forest
+plot_confusion_matrix(cm_rf_after, 'Random Forest', labels)
+
+# Gradient Boosting Machines (GBMs)
+plot_confusion_matrix(cm_gbm_after, 'Gradient Boosting', labels)
+
+# XGBoost
+plot_confusion_matrix(cm_xgb_after, 'XGBoost', labels)
+
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve, auc
+
+# ROC Curve plot for 5 models
+y_prob_lr = lr_model.predict_proba(X_test_final)[:, 1]
+y_prob_dt = dt_model.predict_proba(X_test_final)[:, 1]
+y_prob_rf = rf_model.predict_proba(X_test_final)[:, 1]
+y_prob_gbm = gbm_model.predict_proba(X_test_final)[:, 1]
+y_prob_xgb = xgb_model.predict_proba(X_test_final)[:, 1]
+
+# Compute ROC curve and ROC area for each class
+fpr_lr, tpr_lr, _ = roc_curve(y_test, y_prob_lr)
+roc_auc_lr = auc(fpr_lr, tpr_lr)
+
+fpr_dt, tpr_dt, _ = roc_curve(y_test, y_prob_dt)
+roc_auc_dt = auc(fpr_dt, tpr_dt)
+
+fpr_rf, tpr_rf, _ = roc_curve(y_test, y_prob_rf)
+roc_auc_rf = auc(fpr_rf, tpr_rf)
+
+fpr_gbm, tpr_gbm, _ = roc_curve(y_test, y_prob_gbm)
+roc_auc_gbm = auc(fpr_gbm, tpr_gbm)
+
+fpr_xgb, tpr_xgb, _ = roc_curve(y_test, y_prob_xgb)
+roc_auc_xgb = auc(fpr_xgb, tpr_xgb)
+
+# Plot ROC curve
+plt.figure(figsize=(10, 8))
+plt.plot(fpr_lr, tpr_lr, label=f'Logistic Regression (AUC = {roc_auc_lr:.2f})')
+plt.plot(fpr_dt, tpr_dt, label=f'Decision Tree (AUC = {roc_auc_dt:.2f})')
+plt.plot(fpr_rf, tpr_rf, label=f'Random Forest (AUC = {roc_auc_rf:.2f})')
+plt.plot(fpr_gbm, tpr_gbm, label=f'Gradient Boosting (AUC = {roc_auc_gbm:.2f})')
+plt.plot(fpr_xgb, tpr_xgb, label=f'XGBoost (AUC = {roc_auc_xgb:.2f})')
+
+plt.plot([0, 1], [0, 1], color='navy', linestyle='--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve')
+plt.legend(loc='lower right')
+plt.grid(True)
+plt.show()
