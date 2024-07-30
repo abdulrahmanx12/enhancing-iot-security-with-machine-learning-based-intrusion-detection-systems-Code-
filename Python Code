@@ -21,7 +21,6 @@ print(training_data.head())
 features_to_drop = ['id', 'proto', 'service', 'state', 'attack_cat']
 training_data = training_data.drop(columns=features_to_drop)
 
-
 # Split the dataset into features and labels
 X = training_data.drop(columns=['label'])
 y = training_data['label']
@@ -37,10 +36,6 @@ print("Non-numeric columns:", non_numeric_columns)
 
 # Dropping non-numeric columns if they can't be converted or are unnecessary
 training_data = training_data.drop(columns=non_numeric_columns)
-
-# Now split into features and labels
-X = training_data.drop(columns=['label'])
-y = training_data['label']
 
 # Ensure all remaining columns are numeric
 print(X.dtypes)
@@ -433,6 +428,24 @@ plt.ylabel('Duration')
 plt.xticks([0, 1], ['Normal', 'Attack'])
 plt.show()
 
+#Correlation Heatmap 
+import matplotlib.pyplot as plt
+import seaborn as sns
+corr_matrix = X.corr()
+
+plt.figure(figsize=(15, 10))
+sns.heatmap(corr_matrix, annot=False, cmap='coolwarm')
+plt.show()
+
+# Identify features with correlation above a threshold (e.g., 0.9)
+threshold = 0.9
+high_corr_var = np.where(np.abs(corr_matrix) > threshold)
+high_corr_var = [(corr_matrix.index[x], corr_matrix.columns[y]) for x, y in zip(*high_corr_var) if x != y and x < y]
+
+# List of highly correlated features
+print("Highly correlated features (with correlation > 0.9):")
+print(high_corr_var)
+
 # Function to plot confusion matrix
 def plot_confusion_matrix(cm, title, labels):
     plt.figure(figsize=(6, 4))
@@ -501,7 +514,7 @@ plt.plot(fpr_rf, tpr_rf, label=f'Random Forest (AUC = {roc_auc_rf:.2f})')
 plt.plot(fpr_gbm, tpr_gbm, label=f'Gradient Boosting (AUC = {roc_auc_gbm:.2f})')
 plt.plot(fpr_xgb, tpr_xgb, label=f'XGBoost (AUC = {roc_auc_xgb:.2f})')
 
-plt.plot([0, 1], [0, 1], color='navy', linestyle='--')
+plt.plot([0, 1], [0, 1], color='navy', linestyle='--')  # Diagonal line
 plt.xlim([0.0, 1.0])
 plt.ylim([0.0, 1.05])
 plt.xlabel('False Positive Rate')
@@ -509,4 +522,29 @@ plt.ylabel('True Positive Rate')
 plt.title('Receiver Operating Characteristic (ROC) Curve')
 plt.legend(loc='lower right')
 plt.grid(True)
+plt.show()
+
+#Feature Importance Plot using Random Forest
+# Train the Random Forest model using the 30 selected features
+rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_model.fit(X_train_final, y_train)
+
+importances = rf_model.feature_importances_
+feature_names = X_train_final.columns
+
+feature_importances = pd.DataFrame({
+    'Feature': feature_names,
+    'Importance': importances
+})
+
+feature_importances = feature_importances.sort_values(by='Importance', ascending=False)
+
+plt.figure(figsize=(12, 8))
+plt.bar(feature_importances['Feature'], feature_importances['Importance'], color='lightblue')
+plt.ylabel('Importance')
+plt.xlabel('Feature')
+plt.title('Feature Importance from Random Forest Classifier')
+plt.xticks(rotation=90)
+plt.grid(axis='y')
+plt.tight_layout() 
 plt.show()
