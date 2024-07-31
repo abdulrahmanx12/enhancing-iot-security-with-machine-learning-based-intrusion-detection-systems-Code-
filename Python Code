@@ -11,7 +11,7 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from xgboost import XGBClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, roc_curve, auc
 
-# Load the training dataset
+# Load the training dataset by UNSW-NB15
 training_data = pd.read_csv('UNSW_NB15_training_set.csv')
 
 # Display the first few rows of the dataframe
@@ -40,7 +40,7 @@ training_data = training_data.drop(columns=non_numeric_columns)
 # Ensure all remaining columns are numeric
 print(X.dtypes)
 
-# List of features to keep
+# List of features to keep after feature selection
 features_to_keep = [
     'dur', 'sbytes', 'dbytes', 'rate', 'sttl', 'dttl', 'sload', 'dload',
     'sloss', 'dloss', 'dinpkt', 'sjit', 'djit', 'swin', 'stcpb', 'dtcpb',
