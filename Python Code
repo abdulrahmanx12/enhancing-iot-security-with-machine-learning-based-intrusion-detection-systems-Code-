@@ -1,3 +1,4 @@
+#Ehancing iot security with machine learning-based intrusion detection systems code
 #Libraries
 import pandas as pd
 import numpy as np
@@ -5,6 +6,7 @@ from scipy.stats import uniform
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
@@ -14,7 +16,7 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 # Load the training dataset by UNSW-NB15
 training_data = pd.read_csv('UNSW_NB15_training_set.csv')
 
-# Display the first few rows of the dataframe
+# Display the first few rows
 print(training_data.head())
 
 # Drop non-essential columns
@@ -446,6 +448,27 @@ high_corr_var = [(corr_matrix.index[x], corr_matrix.columns[y]) for x, y in zip(
 print("Highly correlated features (with correlation > 0.9):")
 print(high_corr_var)
 
+#PCA of selected features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X_train_final)
+
+pca = PCA(n_components=0.95)
+X_pca = pca.fit_transform(X_scaled)
+
+explained_variance = pca.explained_variance_ratio_
+print(f"Explained variance by each component: {explained_variance}")
+print(f"Total explained variance: {explained_variance.sum()}")
+
+#PCA plot
+plt.figure(figsize=(8,6))
+plt.scatter(X_pca[:, 0], X_pca[:, 1], c=y_train, cmap='viridis', edgecolor='k', s=40)
+plt.xlabel('First Principal Component')
+plt.ylabel('Second Principal Component')
+plt.title('PCA of Selected Features')
+plt.colorbar()
+plt.grid()
+plt.show()
+
 # Function to plot confusion matrix
 def plot_confusion_matrix(cm, title, labels):
     plt.figure(figsize=(6, 4))
@@ -547,4 +570,36 @@ plt.title('Feature Importance from Random Forest Classifier')
 plt.xticks(rotation=90)
 plt.grid(axis='y')
 plt.tight_layout() 
+plt.show()
+
+#Hyperparamter plots for Random Forest
+# Parameters for RandomizedSearchCV
+param_dist = {
+    'n_estimators': randint(100, 1000),
+    'max_depth': randint(10, 50)
+}
+
+rf_model = RandomForestClassifier(random_state=42)
+
+random_search = RandomizedSearchCV(rf_model, param_distributions=param_dist, n_iter=50, cv=5, scoring='accuracy', n_jobs=-1, random_state=42)
+random_search.fit(X_train_final, y_train)
+
+results = pd.DataFrame(random_search.cv_results_)
+
+# Plotting n_estimators vs. mean test score
+plt.figure(figsize=(12, 6))
+plt.subplot(1, 2, 1)
+sns.lineplot(x=results['param_n_estimators'], y=results['mean_test_score'], marker='o')
+plt.title('n_estimators vs. Accuracy')
+plt.xlabel('n_estimators')
+plt.ylabel('Mean Test Score')
+
+# Plotting max_depth vs. mean test score
+plt.subplot(1, 2, 2)
+sns.lineplot(x=results['param_max_depth'], y=results['mean_test_score'], marker='o')
+plt.title('max_depth vs. Accuracy')
+plt.xlabel('max_depth')
+plt.ylabel('Mean Test Score')
+
+plt.tight_layout()
 plt.show()
